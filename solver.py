@@ -49,6 +49,8 @@ unusable = b
 X = 0
 Y = 0
 
+all_pieces = [] # just list of coords
+piece_list = () # actual Piece objects
 window = Tk()
 width  = IntVar()
 height = IntVar()
@@ -93,11 +95,16 @@ standard_pieces = (
     )
 
 there_are_more_pieces = False
+butts = []
+blank_grid = []
+canceled = False
 
 ###############################################################################
 # MAIN
 ###############################################################################
 def main(args):
+
+    global all_pieces
 
     #
     # First things first, get the size of the board.
@@ -191,56 +198,88 @@ def main(args):
 
     window.mainloop()
 
+    # Add selected standard pieces to all_pieces
+    for index, value in enumerate(standard_values):
+        for i in range(value):
+            all_pieces.append(standard_pieces[index]["coords"])
+
     #
     # Next, let the user input any strange-looking pieces
     #
 
-    more_input_needed = True
+    global there_are_more_pieces
+    there_are_more_pieces = True
 
     check_for_more_pieces()
 
-    while there_are_more_pieces
+    extra_pieces = []
+    sq_len = 10
 
-    sys.exit(0)
+    # Get input until there are no more pieces to enter.
+    while there_are_more_pieces:
 
+        global blank_grid
+        global butts
+        global canceled
 
+        canceled = False
 
+        blank_grid = [[blank for a in range(sq_len) ] for b in range(sq_len)]
+        butts = []
 
-    init_list = [
-#                  [w, w, w]
-#                 ,[w, w, w]
-#                 ,[w, w, w]
-                 [w, w, w, b, w, w, b, w]
-                ,[b, w, w, w, w, w, w, w]
-                ,[w, w, b, w, w, w, w, w]
-                ,[w, w, w, w, w, w, w, w]
-                ,[b, w, w, w, w, w, w, w]
-                ]
-    board = Board(init_list)
+        label = Label(window, text="Enter the piece and BE SURE to align it with the NW corner.")
 
-    init_pieces = (
-#                   Piece( ((0,0), (1,0), (1,1)) )
-#                  ,Piece( ((0,0), (0,1), (0,2), (1,1), (1,2)) )
-#                  ,Piece( ((0,0),) )
-                   Piece( ((1,0), (0,1), (1,1), (2,1)) )
-                  ,Piece( ((0,0), (0,1), (1,1), (1,0), (2,1)) )
-                  ,Piece( ((0,0), (1,0), (1,1)) )
-                  ,Piece( ((0,0), (1,0), (1,1), (2,1)) )
-                  ,Piece( ((0,0), (0,1), (1,1), (1,0), (2,0)) )
-                  ,Piece( ((1,0), (1,1), (0,1), (0,2)) )
-                  ,Piece( ((0,0), (0,1), (1,1), (1,2)) )
-                  ,Piece( ((1,0), (1,1), (0,1)) )
-                  ,Piece( ((0,0), (1,0)) )
-                  ,Piece( ((0,0),) )
-                  )
-    all = Pieces(init_pieces)
+        frame = Frame(window)
+
+        # Create grid of blank buttons
+        for y in range(sq_len):
+            tmp_list = []
+            for x in range(sq_len):
+                tmp_butt = Button(frame, command = lambda a=x, b=y: toggle_button_grid(frame, a, b))
+                tmp_butt.grid(row=y, column=x)
+                tmp_list.extend([tmp_butt])
+            butts.append(tmp_list)
+
+        done_butt = Button(window, text="Done", command=quit_window)
+        done_butt.grid(row=2, column=0)
+
+        cancel_butt = Button(window, text="Cancel", command=cancel_input, fg="red")
+        cancel_butt.grid(row=2, column=1)
+
+        label.grid(row=0, columnspan=2)
+        frame.grid(row=1, columnspan=2)
+
+        window.mainloop()
+
+        # Convert user's selection into coordinates
+        curr_piece = ()
+        for y, row in enumerate(blank_grid):
+            for x, cell in enumerate(row):
+                if cell != blank:
+                    curr_piece += ((x,y),)
+
+        if not canceled:
+            extra_pieces.append(curr_piece)
+
+        check_for_more_pieces()
+
+    # User is done inputting pieces, add to all_pieces and convert to Pieces.
+    global piece_list
+
+    for piece in extra_pieces:
+        all_pieces.append(piece)
+
+    for piece in all_pieces:
+        piece_list += (Piece(piece),)
+
+    all_p = Pieces(piece_list)
+        
+
+    board = Board(board_grid)
 
     global X, Y
     X = board.getMaxX()
     Y = board.getMaxY()
-
-    print(all)
-    print(board)
 
     #
     # Strategy: do some kind of depth-first tree recursion stuff.
@@ -252,7 +291,7 @@ def main(args):
     #    the current piece on the next possible block.
     # 4. Repeat until solution is found (return true).
     #
-    if solve(board, all):
+    if solve(board, all_p):
         print(board)
         print("Yay")
     else:
@@ -326,7 +365,7 @@ def toggleCell(frame, currX, currY):
     board_grid_buttons[currY][currX].destroy()
 
     if board_grid[currY][currX] == blank:
-        board_grid_buttons[currY][currX] = Button(frame, text = 'X', bg = "black", command = lambda row=currY, col=currX: toggleCell(frame, col, row))
+        board_grid_buttons[currY][currX] = Button(frame, text = 'X', bg = "black", activebackground="black", command = lambda row=currY, col=currX: toggleCell(frame, col, row))
         board_grid[currY][currX] = unusable
     else:
         board_grid_buttons[currY][currX] = Button(frame, command = lambda row=currY, col=currX: toggleCell(frame, col, row))
@@ -368,8 +407,8 @@ def standard_minus(display, index):
 #
 def check_for_more_pieces():
     label = Label(window, text="Are there any more pieces to enter?")
-    yes_butt = Button(window, text="Yes", command=more_pieces(1))
-    no_butt  = Button(window, text="No", command=more_pieces(0))
+    yes_butt = Button(window, text="Yes", command=lambda: more_pieces(1))
+    no_butt  = Button(window, text="No", command=lambda: more_pieces(0))
 
     label.grid(row=0)
     yes_butt.grid(row=1)
@@ -380,15 +419,37 @@ def check_for_more_pieces():
 
 # Helper to above
 def more_pieces(val):
-    if val:
-        there_are_more_pieces = True
-    else:
+    if not val:
+        global there_are_more_pieces
         there_are_more_pieces = False
+    quit_window()
     return
+
+#
+# For use in letting user input specific piece. Changes button from white to
+# black and vice-versa.
+#
+def toggle_button_grid(frame, x, y):
+    #global butts
+    butts[y][x].destroy()
+    if blank_grid[y][x] == blank:
+        tmp = Button(frame, command = lambda a=x, b=y: toggle_button_grid(frame, a, b),
+                     bg="black", activebackground="black", text="X")
+        blank_grid[y][x] = unusable
+    else:
+        tmp = Button(frame, command = lambda a=x, b=y: toggle_button_grid(frame, a, b))
+        blank_grid[y][x] = blank
+    tmp.grid(row=y, column=x)
+    butts[y][x] = tmp
 
 def quit_window():
     clear_window()
     window.quit()
+
+def cancel_input():
+    global canceled
+    canceled = True
+    quit_window()
 
 ###############################################################################
 # BACK END CLASSES
