@@ -40,15 +40,29 @@ output = { 'w'  : { "color" : white,         "char" : "@" }
           ,'bp' : { "color" : bold + purple, "char" : "X" }
           ,'bc' : { "color" : bold + cyan,   "char" : "X" }
          }
-colors = ( 'r', 'g', 'y', 'a', 'p', 'c', 'br', 'bg', 'by', 'ba', 'bp', 'bc' )
-curr_color = 0
-blank = w
-unusable = b
+colors = ( 'b', 'r', 'g', 'y', 'a', 'p', 'c', 'br', 'bg', 'by', 'ba', 'bp', 'bc', 'w' )
+blank = -1
+unusable = 0
+
+# Generate sequence of colors for the gui to use when it draws blocks.
+gui_colors = [ "#000000" ] # index 0 is used with the "unusable" variable
+base_hex   = ["00", "8f", "ff"]
+blacklist  = ["000000", "ffffff"]
+for a in base_hex:
+    for b in base_hex:
+        for c in base_hex:
+            color = c + b + a
+            if color not in blacklist:
+                gui_colors.extend(["#" + color])
+gui_colors.extend(["#ffffff"]) # if not enough pieces are entered, blank spaces
+                               # will be white since 'blank' is -1.
 
 # Not descriptive names. Oh well. Represent a board's max X and Y bounds.
 X = 0
 Y = 0
+sq_len = 10
 
+placed_pieces = 1
 all_pieces = [] # just list of coords
 piece_list = () # actual Piece objects
 window = Tk()
@@ -82,16 +96,20 @@ standard_pieces = (
     ,{'row' : 5, 'col' : 3, 'coords' : ((0,0),(1,0),(1,1),(2,1))}
     ,{'row' : 6, 'col' : 0, 'coords' : ((0,0),(1,0),(0,1),(0,2))}
     ,{'row' : 6, 'col' : 1, 'coords' : ((0,0),(1,0),(1,1),(1,2))}
-    ,{'row' : 6, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(2,1))}
-    ,{'row' : 6, 'col' : 3, 'coords' : ((2,0),(0,1),(1,1),(2,1))}
-    ,{'row' : 7, 'col' : 0, 'coords' : ((1,0),(2,0),(1,1),(0,1),(0,2))}
-    ,{'row' : 7, 'col' : 1, 'coords' : ((0,0),(1,0),(1,1),(2,1),(2,2))}
-    ,{'row' : 7, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(1,2),(2,2))}
-    ,{'row' : 7, 'col' : 3, 'coords' : ((0,2),(1,1),(1,2),(2,0),(2,1))}
-    ,{'row' : 8, 'col' : 0, 'coords' : ((0,2),(1,2),(1,1),(1,0),(2,0))}
-    ,{'row' : 8, 'col' : 1, 'coords' : ((0,0),(1,0),(1,1),(1,2),(2,2))}
-    ,{'row' : 8, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(2,1),(2,2))}
-    ,{'row' : 8, 'col' : 3, 'coords' : ((0,2),(0,1),(1,1),(2,1),(2,0))}
+    ,{'row' : 6, 'col' : 2, 'coords' : ((0,0),(0,1),(0,2),(1,2))}
+    ,{'row' : 6, 'col' : 3, 'coords' : ((1,0),(1,1),(1,2),(0,2))}
+    ,{'row' : 7, 'col' : 0, 'coords' : ((0,0),(1,0),(2,0),(0,1))}
+    ,{'row' : 7, 'col' : 1, 'coords' : ((0,0),(1,0),(2,0),(2,1))}
+    ,{'row' : 7, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(2,1))}
+    ,{'row' : 7, 'col' : 3, 'coords' : ((2,0),(0,1),(1,1),(2,1))}
+    ,{'row' : 8, 'col' : 0, 'coords' : ((1,0),(2,0),(1,1),(0,1),(0,2))}
+    ,{'row' : 8, 'col' : 1, 'coords' : ((0,0),(1,0),(1,1),(2,1),(2,2))}
+    ,{'row' : 8, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(1,2),(2,2))}
+    ,{'row' : 8, 'col' : 3, 'coords' : ((0,2),(1,1),(1,2),(2,0),(2,1))}
+    ,{'row' : 9, 'col' : 0, 'coords' : ((0,2),(1,2),(1,1),(1,0),(2,0))}
+    ,{'row' : 9, 'col' : 1, 'coords' : ((0,0),(1,0),(1,1),(1,2),(2,2))}
+    ,{'row' : 9, 'col' : 2, 'coords' : ((0,0),(0,1),(1,1),(2,1),(2,2))}
+    ,{'row' : 9, 'col' : 3, 'coords' : ((0,2),(0,1),(1,1),(2,1),(2,0))}
     )
 
 there_are_more_pieces = False
@@ -105,6 +123,7 @@ canceled = False
 def main(args):
 
     global all_pieces
+    global sq_len
 
     #
     # First things first, get the size of the board.
@@ -134,8 +153,6 @@ def main(args):
     #
     # Next, let the user click on cells that aren't playable.
     #
-    middle_col  = int(int(width)/3)
-    middle_span = ((int(width)+1)%2)+1
 
     label = Label(window, text="Click on cells that are unusable:")
     label.grid(row=0)
@@ -198,11 +215,6 @@ def main(args):
 
     window.mainloop()
 
-    # Add selected standard pieces to all_pieces
-    for index, value in enumerate(standard_values):
-        for i in range(value):
-            all_pieces.append(standard_pieces[index]["coords"])
-
     #
     # Next, let the user input any strange-looking pieces
     #
@@ -213,7 +225,6 @@ def main(args):
     check_for_more_pieces()
 
     extra_pieces = []
-    sq_len = 10
 
     # Get input until there are no more pieces to enter.
     while there_are_more_pieces:
@@ -263,20 +274,28 @@ def main(args):
 
         check_for_more_pieces()
 
-    # User is done inputting pieces, add to all_pieces and convert to Pieces.
-    global piece_list
-
+    # User is done inputting pieces, add to all_pieces. These are more likely
+    # to be large pieces, so we might have better performance if they're added
+    # first.
     for piece in extra_pieces:
         all_pieces.append(piece)
+
+    # Add selected standard pieces to all_pieces
+    for index, value in enumerate(standard_values):
+        for i in range(value):
+            all_pieces.append(standard_pieces[index]["coords"])
+
+    # Convert to Pieces.
+    global piece_list
 
     for piece in all_pieces:
         piece_list += (Piece(piece),)
 
+    # Initialize internal classes
     all_p = Pieces(piece_list)
-        
-
     board = Board(board_grid)
 
+    # Set a few globals
     global X, Y
     X = board.getMaxX()
     Y = board.getMaxY()
@@ -293,9 +312,25 @@ def main(args):
     #
     if solve(board, all_p):
         print(board)
-        print("Yay")
     else:
         print("NO SOLUTION FOUND")
+
+    #
+    # Display gui representation of the board.
+    #
+    sq_len = 20
+
+    canvas = Canvas(window, width=sq_len*X+2*sq_len, height=sq_len*Y+2*sq_len)
+    for y, row in enumerate(board.getData()):
+        for x, value in enumerate(row):
+            canvas.create_rectangle(x*sq_len + sq_len,
+                                    y*sq_len + sq_len,
+                                    x*sq_len + 2*sq_len, 
+                                    y*sq_len + 2*sq_len, 
+                                    fill=value_to_gui_color(value))
+
+    canvas.grid()
+    window.mainloop()
 
 ###############################################################################
 # HELPER FUNCTIONS
@@ -312,9 +347,7 @@ def solve(board, pieces):
         for currX in range(X):
             if board.can_fit(piece, currX, currY):
 
-                board.place(piece, currX, currY, newColor())
-                #print("woop", piece, currX, currY)
-                #print(board)
+                board.place(piece, currX, currY, placed_pieces)
                 save_piece = pieces.pop()
 
                 if solve(board, pieces):
@@ -322,27 +355,41 @@ def solve(board, pieces):
                 else:
                     board.remove(piece, currX, currY)
                     pieces.push(save_piece)
-                    decrementColor() 
-    #print("can't fit piece ", piece)
     return False
         
-def newColor():
-    global curr_color
-    ret = curr_color
+#
+# Board values are stored as numbers but need to be converted for CLI output.
+#  0 is reserved for 'unusable' so don't roll over to that
+# -1 is reserved for 'blank' so don't use the last value
+#
+def piece_num_to_color(num):
+    if num == 0 or num == -1:
+        return colors[num]
+    else:
+        return colors[((int(num)-1) % (len(colors)-2))+1]
 
-    curr_color += 1
-    if curr_color >= len(colors):
-        curr_color = 0
+#
+# Same idea as above function.
+#  0 is reserved for 'unusable' so don't roll over to that
+# -1 is reserved for 'blank' so don't use the last value
+#
+def value_to_gui_color(value):
+    if value == 0 or value == -1:
+        return gui_colors[value]
+    else:
+        # only returns values of an array that are not at the ends.
+        return gui_colors[((int(value)-1) % (len(gui_colors)-2))+1]
 
-    return colors[ret]
+#
+# Adjusts the global count of pieces played.
+#
+def pieceNumber(value):
+    global placed_pieces
+    placed_pieces += value
 
-def decrementColor():
-    global curr_color
-
-    curr_color -= 1
-    if curr_color < 0:
-        curr_color = len(colors) - 1
-
+#
+# Sets global variables used in main.
+#
 def get_width_and_height(w_e, h_e):
     global width
     global height
@@ -351,10 +398,6 @@ def get_width_and_height(w_e, h_e):
     height = h_e.get()
     quit_window()
 
-def clear_window():
-    for widget in window.grid_slaves():
-        widget.destroy()
-
 #
 # removes button and switches its color from white to black or vice versa.
 #
@@ -362,15 +405,28 @@ def toggleCell(frame, currX, currY):
     global board_grid
     global board_grid_buttons
 
-    board_grid_buttons[currY][currX].destroy()
+    # Just to make it a little cleaner...
+    buttons = board_grid_buttons
+    values  = board_grid
 
-    if board_grid[currY][currX] == blank:
-        board_grid_buttons[currY][currX] = Button(frame, text = 'X', bg = "black", activebackground="black", command = lambda row=currY, col=currX: toggleCell(frame, col, row))
-        board_grid[currY][currX] = unusable
+    buttons[currY][currX].destroy()
+
+    # Switch button from white to black
+    if values[currY][currX] == blank:
+        buttons[currY][currX] = Button(frame, text = 'X', bg = "black",
+                                       activebackground="black",
+                                       command = lambda row=currY, col=currX:
+                                       toggleCell(frame, col, row))
+        values[currY][currX] = unusable
+
+    # Switch button from black to white
     else:
-        board_grid_buttons[currY][currX] = Button(frame, command = lambda row=currY, col=currX: toggleCell(frame, col, row))
-        board_grid[currY][currX] = blank
-    board_grid_buttons[currY][currX].grid(row=currY, column=currX)
+        buttons[currY][currX] = Button(frame,
+                                       command = lambda row=currY, col=currX:
+                                       toggleCell(frame, col, row))
+        values[currY][currX] = blank
+
+    buttons[currY][currX].grid(row=currY, column=currX)
 
 #
 # Takes a list of x,y coordinates and creates gui rectangles based on them.
@@ -382,7 +438,11 @@ def coord_to_piece(frame, coord_list):
         x = coord[0]
         y = coord[1]
 
-        ret.create_rectangle(10+10*x, 10+10*y, 20+10*x, 20+10*y, fill="yellow")
+        ret.create_rectangle(sq_len*x + sq_len,
+                             sq_len*y + sq_len,
+                             sq_len*x + 2*sq_len,
+                             sq_len*y + 2*sq_len,
+                             fill="yellow")
     return ret
 
 #
@@ -430,7 +490,7 @@ def more_pieces(val):
 # black and vice-versa.
 #
 def toggle_button_grid(frame, x, y):
-    #global butts
+
     butts[y][x].destroy()
     if blank_grid[y][x] == blank:
         tmp = Button(frame, command = lambda a=x, b=y: toggle_button_grid(frame, a, b),
@@ -442,6 +502,12 @@ def toggle_button_grid(frame, x, y):
     tmp.grid(row=y, column=x)
     butts[y][x] = tmp
 
+# Clears widgets
+def clear_window():
+    for widget in window.grid_slaves():
+        widget.destroy()
+
+# Kills a window
 def quit_window():
     clear_window()
     window.quit()
@@ -455,7 +521,9 @@ def cancel_input():
 # BACK END CLASSES
 ###############################################################################
 
+#
 # Board class: represents a game board which a player has to fill in.
+#
 class Board:
 
     #######################################
@@ -479,7 +547,8 @@ class Board:
         ret = ""
         for row in self.__data:
             for cell in row:
-                ret += output[cell]["color"] + output[cell]["char"] + reset
+                color = piece_num_to_color(cell)
+                ret += output[color]["color"] + output[color]["char"] + reset
             ret += "\n"
         return ret
 
@@ -491,6 +560,9 @@ class Board:
     def getMaxY(self):
         return self.__maxY
         return len(self.__data)
+
+    def getData(self):
+        return self.__data
 
     ###########################
     # PRIMARY BOARD FUNCTIONS #
@@ -508,19 +580,23 @@ class Board:
 
         return True
 
-    def place(self, piece, currX, currY, color):
+    def place(self, piece, currX, currY, number):
         for coords in piece.getData():
             cumulativeX = currX + coords[0]
             cumulativeY = currY + coords[1]
-            self.__data[cumulativeY][cumulativeX] = color
+            self.__data[cumulativeY][cumulativeX] = number
+        pieceNumber(1)
 
     def remove(self, piece, currX, currY):
         for coords in piece.getData():
             cumulativeX = currX + coords[0]
             cumulativeY = currY + coords[1]
             self.__data[cumulativeY][cumulativeX] = blank
+        pieceNumber(-1)
 
+#
 # Pieces class: Represents a list of pieces
+#
 class Pieces:
 
     # pieces_list is tuple of Pieces.
@@ -553,8 +629,10 @@ class Pieces:
             return True
 
 
+#
 # Piece class: Represents a single piece which needs to fit onto a board.
 #              Is really just a list of points which will be used as offsets.
+#
 class Piece:
 
     # coord_list is tuple of x, y coordinates saved as a tuple.
@@ -568,28 +646,10 @@ class Piece:
         return self.__data
 
 ###############################################################################
-# GUI CLASSES - TODO: remove?
-###############################################################################
-#class Gui:
-
-    # Gui starts off as a simple prompt for the size of the board.
-    # root is the root window/tk.
-    #def __init__(self, root):
-    #    self.frame = 
-        
-
-###############################################################################
 # END CODE
 ###############################################################################
 
 if __name__ == "__main__":
-    f = open('debug.txt', 'w')
-    f.close()
+    #f = open('debug.txt', 'w')
+    #f.close()
     main(sys.argv)
-
-
-
-
-
-
-
